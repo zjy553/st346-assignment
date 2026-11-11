@@ -1,0 +1,206 @@
+---
+title: "ST346 Assignment 1"
+output:
+  pdf_document:
+    latex_engine: xelatex
+fontsize: 11pt
+papersize: a4
+geometry: margin=22mm
+header-includes:
+  - \usepackage{float}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.pos = "H",
+                      out.width = "100%", fig.align = "center")
+load("courseworkData1.rda")
+
+```
+
+## Question 1
+
+For households in Dhaka and Gazipur:
+
+**Arsenic:** positive. Higher arsenic concentrations indicate greater health risks, potentially giving households a stronger incentive to switch.
+
+**Distance:** negative. A greater distance to the nearest safe well increases the time and effort required to collect water, potentially discouraging switching.
+
+**Education:** positive. Higher educational attainment may improve understanding of arsenic-related health risks and the benefits of switching.
+
+**Association membership:** positive. Membership in a community organisation may facilitate access to information and social support, encouraging switching.
+
+## Question 2
+
+The assumption of independence between observations could be violated. Adults within the same household in Dhaka and Gazipur are likely to share a well and make a joint decision about switching, so their outcomes would be correlated.
+
+## Question 3
+
+Both arsenic concentration and distance to the nearest safe well have positively skewed distributions, with most observations at lower values and relatively few large values.
+
+```{r histograms, echo=FALSE, fig.width=8, fig.height=4, fig.cap="Histograms of arsenic concentration and distance to the nearest safe well."}
+par(mfrow = c(1, 2))
+
+hist(wells$arsenic,
+     main = "Arsenic concentration",
+     xlab = "Arsenic concentration (mg/L)",
+     col = "lightblue", border = "white")
+
+hist(wells$dist,
+     main = "Distance to nearest safe well",
+     xlab = "Distance to nearest safe well (m)",
+     col = "lightblue", border = "white")
+```
+
+
+## Question 4
+
+The proportion of households switching increases with arsenic concentration, from approximately 42% in the lowest group to 71% in the highest group. For distance, the switching proportion shows an overall downward trend, although it increases slightly between the first two groups. Households farther from a safe well generally appear less likely to switch.
+
+```{r dose-response,echo=FALSE, fig.width=8, fig.height=4, fig.cap="Observed switching proportions across groups of arsenic concentration and distance to the nearest safe well."}
+
+plot_response <- function(x, y, xlab) {
+  breaks <- unique(quantile(x, probs = seq(0, 1, 0.2),
+                            na.rm = TRUE))
+  group <- cut(x, breaks = breaks, include.lowest = TRUE)
+
+  mean_x <- tapply(x, group, mean, na.rm = TRUE)
+
+  prop_switch <- tapply(y, group, mean, na.rm = TRUE)
+
+  plot(mean_x, prop_switch,
+       type = "b", pch = 16, ylim = c(0, 1),
+       xlab = xlab,
+       ylab = "Proportion of households switching")
+}
+
+par(mfrow = c(1, 2))
+
+plot_response(wells$arsenic, wells$switch,
+              "Arsenic concentration (mg/L)")
+plot_response(wells$dist, wells$switch,
+              "Distance to nearest safe well (m)")
+```
+## Question 5
+
+```{r, echo=TRUE}
+wells$dist100 <- wells$dist / 100
+```
+
+## Question 6
+
+```{r, echo=TRUE}
+wells$arsenic2 <- log2(wells$arsenic / 0.05)
+```
+
+## Question 7
+
+**dist100:** A one-metre increase is small relative to the distances households travel, so its odds ratio is likely to be close to 1. Using dist100 gives the odds ratio for an additional 100 metres, a more meaningful change in walking distance.
+
+**arsenic2:** A one-unit increase in the original scale represents 1 mg/L (20 times the safe threshold), which is large relative to the observed concentrations. Using arsenic2 gives the odds ratio for a doubling of concentration, while setting zero at the safe threshold provides a meaningful reference point.
+
+\newpage
+
+## Question 8
+
+The following model is fitted to the household well-switching data from Dhaka and Gazipur.
+
+```{r}
+model1 <- glm(switch ~ dist100 + arsenic2,
+              family = binomial(link = "logit"),
+              data = wells)
+
+summary(model1)
+```
+
+\newpage
+
+## Question 9
+
+```{r household-Z, echo=TRUE, out.width="70%", fig.width=5, fig.height=5, fig.cap="Predicted probability of household Z switching by distance to the nearest safe well."}
+
+par(pty = "s")
+distance <- seq(0, 300, length.out = 301)
+
+household_Z <- data.frame(
+  dist100 = distance / 100,
+  arsenic2 = log2(5)
+)
+
+prob_Z <- predict(model1,
+                  newdata = household_Z,
+                  type = "response")
+
+plot(distance, prob_Z,
+     type = "l",
+     ylim = c(0, 1),
+     xlab = "Distance to nearest safe well (m)",
+     ylab = "Probability of switching")
+```
+
+\newpage
+
+## Question 10
+
+For household Z, $\text{arsenic2}=\log_2(5)$. Writing the distance
+in metres as $d$, the fitted curve satisfies
+
+$$
+\log\left(\frac{\hat p}{1-\hat p}\right)
+=-0.08067-0.97957\frac{d}{100}+0.60716\log_2(5).
+$$
+
+When $\hat p=0.5$, the log-odds equal zero. Hence,
+
+$$
+0=-0.08067-0.97957\frac{d}{100}+0.60716\log_2(5).
+$$
+
+Rearranging gives
+
+$$
+d=100\frac{0.60716\log_2(5)-0.08067}{0.97957}
+\approx135.7.
+$$
+
+The estimated probability of household Z switching is 0.5 when
+the nearest safe well is approximately **135.7 metres away**.
+
+## Question 11
+
+```{r}
+model2 <- update(model1, . ~ . + educ + assoc)
+summary(model2)
+```
+## Question 12
+
+$p=0.1101>0.05$.
+At the 5% significance level, assoc is the only predictor that is not statistically significant. After controlling for distance, arsenic and education, there is insufficient evidence that association membership is associated with well switching. 
+
+## Question 13
+
+Let $p_A$ and $p_B$ denote the probabilities of well switching for
+households A and B. Taking household A as the reference, the odds ratio is
+
+$$
+\mathrm{OR}_{B:A}
+= \frac{p_B/(1-p_B)}{p_A/(1-p_A)}.
+$$
+
+Since the households differ only in education, all other terms in the
+logistic regression model cancel:
+
+$$
+\log(\mathrm{OR}_{B:A})
+= (10-0)\beta_{\mathrm{educ}}.
+$$
+
+Therefore,
+
+$$
+\widehat{\mathrm{OR}}_{B:A}
+= \exp(10\hat{\beta}_{\mathrm{educ}})
+= \exp(10\times0.042740)
+\approx 1.533.
+$$
+
+Holding all other predictors constant, household B has approximately 53.3% higher odds of well switching than household A.
